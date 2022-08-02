@@ -65,16 +65,14 @@ class NetplanGenerate(utils.NetplanCommand):
                                    "Generate",  # the method
                                    ])
 
-            if res != 0:
-                if res == 130:
-                    raise PermissionError(
-                        "failed to communicate with dbus service")
-                else:
-                    raise RuntimeError(
-                        "failed to communicate with dbus service: error %s" % res)
-            else:
+            if res == 0:
                 return
 
+            if res == 130:
+                raise PermissionError(
+                    "failed to communicate with dbus service")
+            else:
+                raise RuntimeError(f"failed to communicate with dbus service: error {res}")
         argv = [utils.get_generator_path()]
         if self.root_dir:
             argv += ['--root-dir', self.root_dir]

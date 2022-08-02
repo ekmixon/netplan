@@ -59,7 +59,7 @@ class Terminal(object):
         flags = fcntl.fcntl(self.fd, fcntl.F_GETFL)
         fcntl.fcntl(self.fd, fcntl.F_SETFL, flags & ~os.O_NONBLOCK)
 
-    def get_confirmation_input(self, timeout=120, message=None):  # pragma: nocover (requires user input)
+    def get_confirmation_input(self, timeout=120, message=None):    # pragma: nocover (requires user input)
         """
         Get a "confirmation" input from the user, for at most (timeout)
         seconds. Optionally, customize the message to be displayed.
@@ -73,7 +73,7 @@ class Terminal(object):
         """
         print("Do you want to keep these settings?\n\n")
 
-        settings = dict()
+        settings = {}
         self.save(settings)
         self.disable_echo()
         self.enable_nonblocking_io()
@@ -81,7 +81,7 @@ class Terminal(object):
         if not message:
             message = "accept the new configuration"
 
-        print("Press ENTER before the timeout to {}\n\n".format(message))
+        print(f"Press ENTER before the timeout to {message}\n\n")
         timeout_now = timeout
         while (timeout_now > 0):
             print("Changes will revert in {:>{}} seconds".format(timeout_now, len(str(timeout))), end='\r')
@@ -117,9 +117,7 @@ class Terminal(object):
             - dest: if set, save settings to this dict
         """
         orig_flags = fcntl.fcntl(self.fd, fcntl.F_GETFL)
-        orig_term = None
-        if sys.stdin.isatty():
-            orig_term = termios.tcgetattr(self.fd)
+        orig_term = termios.tcgetattr(self.fd) if sys.stdin.isatty() else None
         if dest is not None:
             dest.update({'flags': orig_flags,
                          'term': orig_term})

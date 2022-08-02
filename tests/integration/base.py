@@ -33,7 +33,10 @@ import gi
 import glob
 
 # make sure we point to libnetplan properly.
-os.environ.update({'LD_LIBRARY_PATH': '.:{}'.format(os.environ.get('LD_LIBRARY_PATH'))})
+os.environ.update(
+    {'LD_LIBRARY_PATH': f".:{os.environ.get('LD_LIBRARY_PATH')}"}
+)
+
 
 test_backends = "networkd NetworkManager" if "NETPLAN_TEST_BACKENDS" not in os.environ else os.environ["NETPLAN_TEST_BACKENDS"]
 
@@ -58,7 +61,7 @@ class IntegrationTestsBase(unittest.TestCase):
     Each test should call self.setup_eth() with the desired configuration.
     '''
     @classmethod
-    def setUpClass(klass):
+    def setUpClass(cls):
         shutil.rmtree('/etc/netplan', ignore_errors=True)
         os.makedirs('/etc/netplan', exist_ok=True)
         # Try to keep autopkgtest's management network (eth0/ens3) up and
@@ -80,7 +83,7 @@ class IntegrationTestsBase(unittest.TestCase):
         subprocess.call(['/lib/systemd/systemd-networkd-wait-online', '--quiet', '--timeout=30'])
 
     @classmethod
-    def tearDownClass(klass):
+    def tearDownClass(cls):
         try:
             os.remove('/run/NetworkManager/conf.d/test-blacklist.conf')
         except FileNotFoundError:
@@ -113,7 +116,7 @@ class IntegrationTestsBase(unittest.TestCase):
         subprocess.check_call(['systemctl', 'restart', 'systemd-networkd'])
 
     @classmethod
-    def create_devices(klass):
+    def create_devices(cls):
         '''Create Access Point and Client devices with veth'''
 
         if os.path.exists('/sys/class/net/eth42'):
@@ -122,16 +125,16 @@ class IntegrationTestsBase(unittest.TestCase):
         # create virtual ethernet devs
         subprocess.check_call(['ip', 'link', 'add', 'name', 'eth42', 'type',
                                'veth', 'peer', 'name', 'veth42'])
-        klass.dev_e_ap = 'veth42'
-        klass.dev_e_client = 'eth42'
-        klass.dev_e_ap_ip4 = '192.168.5.1/24'
-        klass.dev_e_ap_ip6 = '2600::1/64'
+        cls.dev_e_ap = 'veth42'
+        cls.dev_e_client = 'eth42'
+        cls.dev_e_ap_ip4 = '192.168.5.1/24'
+        cls.dev_e_ap_ip6 = '2600::1/64'
         subprocess.check_call(['ip', 'link', 'add', 'name', 'eth43', 'type',
                                'veth', 'peer', 'name', 'veth43'])
-        klass.dev_e2_ap = 'veth43'
-        klass.dev_e2_client = 'eth43'
-        klass.dev_e2_ap_ip4 = '192.168.6.1/24'
-        klass.dev_e2_ap_ip6 = '2601::1/64'
+        cls.dev_e2_ap = 'veth43'
+        cls.dev_e2_client = 'eth43'
+        cls.dev_e2_ap_ip4 = '192.168.6.1/24'
+        cls.dev_e2_ap_ip6 = '2601::1/64'
         # Creation of the veths introduces a race with newer versions of
         # systemd, as it  will change the initial MAC address after the device
         # was created and networkd took control. Give it some time, so we read
@@ -139,10 +142,10 @@ class IntegrationTestsBase(unittest.TestCase):
         time.sleep(0.1)
         out = subprocess.check_output(['ip', '-br', 'link', 'show', 'dev', 'eth42'],
                                       universal_newlines=True)
-        klass.dev_e_client_mac = out.split()[2]
+        cls.dev_e_client_mac = out.split()[2]
         out = subprocess.check_output(['ip', '-br', 'link', 'show', 'dev', 'eth43'],
                                       universal_newlines=True)
-        klass.dev_e2_client_mac = out.split()[2]
+        cls.dev_e2_client_mac = out.split()[2]
 
         os.makedirs('/run/NetworkManager/conf.d', exist_ok=True)
 
@@ -151,15 +154,15 @@ class IntegrationTestsBase(unittest.TestCase):
             f.write('[keyfile]\nunmanaged-devices=')
 
     @classmethod
-    def shutdown_devices(klass):
+    def shutdown_devices(cls):
         '''Remove test devices'''
 
-        subprocess.check_call(['ip', 'link', 'del', 'dev', klass.dev_e_ap])
-        subprocess.check_call(['ip', 'link', 'del', 'dev', klass.dev_e2_ap])
-        klass.dev_e_ap = None
-        klass.dev_e_client = None
-        klass.dev_e2_ap = None
-        klass.dev_e2_client = None
+        subprocess.check_call(['ip', 'link', 'del', 'dev', cls.dev_e_ap])
+        subprocess.check_call(['ip', 'link', 'del', 'dev', cls.dev_e2_ap])
+        cls.dev_e_ap = None
+        cls.dev_e_client = None
+        cls.dev_e2_ap = None
+        cls.dev_e2_client = None
 
         subprocess.call(['ip', 'link', 'del', 'dev', 'mybr'],
                         stderr=subprocess.PIPE)
@@ -207,23 +210,20 @@ class IntegrationTestsBase(unittest.TestCase):
     #
 
     @classmethod
-    def poll_text(klass, logpath, string, timeout=50):
+    def poll_text(cls, logpath, string, timeout=50):
         '''Poll log file for a given string with a timeout.
 
         Timeout is given in deciseconds.
         '''
         log = ''
-        while timeout > 0:
-            if os.path.exists(logpath):
-                break
+        while timeout > 0 and not os.path.exists(logpath):
             timeout -= 1
             time.sleep(0.1)
-        assert timeout > 0, 'Timed out waiting for file %s to appear' % logpath
+        assert timeout > 0, f'Timed out waiting for file {logpath} to appear'
 
         with open(logpath) as f:
             while timeout > 0:
-                line = f.readline()
-                if line:
+                if line := f.readline():
                     log += line
                     if string in line:
                         break
@@ -251,20 +251,27 @@ class IntegrationTestsBase(unittest.TestCase):
             else:
                 dhcp_range = '2600::10,2600::20'
             if ipv6_mode:
-                dhcp_range += ',' + ipv6_mode
+                dhcp_range += f',{ipv6_mode}'
 
-        dnsmasq_log = os.path.join(self.workdir, 'dnsmasq-%s.log' % iface)
-        lease_file = os.path.join(self.workdir, 'dnsmasq-%s.leases' % iface)
+        dnsmasq_log = os.path.join(self.workdir, f'dnsmasq-{iface}.log')
+        lease_file = os.path.join(self.workdir, f'dnsmasq-{iface}.leases')
 
-        p = subprocess.Popen(['dnsmasq', '--keep-in-foreground', '--log-queries',
-                              '--log-facility=' + dnsmasq_log,
-                              '--conf-file=/dev/null',
-                              '--dhcp-leasefile=' + lease_file,
-                              '--bind-interfaces',
-                              '--interface=' + iface,
-                              '--except-interface=lo',
-                              '--enable-ra',
-                              '--dhcp-range=' + dhcp_range])
+        p = subprocess.Popen(
+            [
+                'dnsmasq',
+                '--keep-in-foreground',
+                '--log-queries',
+                f'--log-facility={dnsmasq_log}',
+                '--conf-file=/dev/null',
+                f'--dhcp-leasefile={lease_file}',
+                '--bind-interfaces',
+                f'--interface={iface}',
+                '--except-interface=lo',
+                '--enable-ra',
+                f'--dhcp-range={dhcp_range}',
+            ]
+        )
+
         self.addCleanup(p.kill)
 
         if ipv6_mode is not None:
@@ -299,12 +306,12 @@ class IntegrationTestsBase(unittest.TestCase):
         # regenerate netplan config
         cmd = ['netplan', 'apply']
         if state_dir:
-            cmd = cmd + ['--state', state_dir]
+            cmd += ['--state', state_dir]
         out = ''
         try:
             out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, universal_newlines=True)
         except subprocess.CalledProcessError as e:
-            self.assertTrue(False, 'netplan apply failed: {}'.format(e.output))
+            self.assertTrue(False, f'netplan apply failed: {e.output}')
 
         if 'Run \'systemctl daemon-reload\' to reload units.' in out:
             self.fail('systemd units changed without reload')
@@ -328,7 +335,7 @@ class IntegrationTestsBase(unittest.TestCase):
 
     def state(self, iface, state):
         '''Tell generate_and_settle() to wait for a specific state'''
-        return iface + '/' + state
+        return f'{iface}/{state}'
 
     def state_up(self, iface):
         '''Tell generate_and_settle() to wait for the interface to be brought UP'''
@@ -351,13 +358,13 @@ class IntegrationTestsBase(unittest.TestCase):
             c = NM.Client.new(None)
             con = c.get_device_by_iface(iface).get_active_connection()
             if not con:
-                self.fail('no active connection for %s by NM' % iface)
+                self.fail(f'no active connection for {iface} by NM')
             flags = NM.utils_enum_to_str(NM.ActivationStateFlags, con.get_state_flags())
             if "ip4-ready" in flags:
                 break
             time.sleep(1)
         else:
-            self.fail('timed out waiting for %s to get ready by NM' % iface)
+            self.fail(f'timed out waiting for {iface} to get ready by NM')
 
     def wait_output(self, cmd, expected_output, timeout=10):
         for _ in range(timeout):
@@ -372,7 +379,7 @@ class IntegrationTestsBase(unittest.TestCase):
             time.sleep(1)
         else:
             subprocess.call(cmd)  # print output of the failed command
-            self.fail('timed out waiting for "{}" to appear in {}'.format(expected_output, cmd))
+            self.fail(f'timed out waiting for "{expected_output}" to appear in {cmd}')
 
     def nm_wait_connected(self, iface, timeout=10):
         self.wait_output(['nmcli', 'dev', 'show', iface], '(connected', timeout)
@@ -382,7 +389,7 @@ class IntegrationTestsBase(unittest.TestCase):
         self.wait_output(['networkctl', 'status', iface], '(configured', timeout)
 
     @classmethod
-    def is_active(klass, unit):
+    def is_active(cls, unit):
         '''Check if given unit is active or activating'''
 
         p = subprocess.Popen(['systemctl', 'is-active', unit], stdout=subprocess.PIPE)
@@ -402,7 +409,7 @@ class IntegrationTestsWifi(IntegrationTestsBase):
     configuration.
     '''
     @classmethod
-    def setUpClass(klass):
+    def setUpClass(cls):
         super().setUpClass()
         # ensure we have this so that iw works
         try:
@@ -411,29 +418,29 @@ class IntegrationTestsWifi(IntegrationTestsBase):
             out = subprocess.check_output(['iw', 'reg', 'get'], universal_newlines=True)
             m = re.match(r'^(?:global\n)?country (\S+):', out)
             assert m
-            klass.orig_country = m.group(1)
+            cls.orig_country = m[1]
             subprocess.check_call(['iw', 'reg', 'set', 'EU'])
         except Exception:
             raise unittest.SkipTest("cfg80211 (wireless) is unavailable, can't test")
 
     @classmethod
-    def tearDownClass(klass):
-        subprocess.check_call(['iw', 'reg', 'set', klass.orig_country])
+    def tearDownClass(cls):
+        subprocess.check_call(['iw', 'reg', 'set', cls.orig_country])
         super().tearDownClass()
 
     @classmethod
-    def create_devices(klass):
+    def create_devices(cls):
         '''Create Access Point and Client devices with mac80211_hwsim and veth'''
         if os.path.exists('/sys/module/mac80211_hwsim'):
             raise SystemError('mac80211_hwsim module already loaded')
         super().create_devices()
         # create virtual wlan devs
-        before_wlan = set([c for c in os.listdir('/sys/class/net') if c.startswith('wlan')])
+        before_wlan = {c for c in os.listdir('/sys/class/net') if c.startswith('wlan')}
         subprocess.check_call(['modprobe', 'mac80211_hwsim'])
         # wait 5 seconds for fake devices to appear
         timeout = 50
         while timeout > 0:
-            after_wlan = set([c for c in os.listdir('/sys/class/net') if c.startswith('wlan')])
+            after_wlan = {c for c in os.listdir('/sys/class/net') if c.startswith('wlan')}
             if len(after_wlan) - len(before_wlan) >= 2:
                 break
             timeout -= 1
@@ -442,19 +449,22 @@ class IntegrationTestsWifi(IntegrationTestsBase):
             raise SystemError('timed out waiting for fake devices to appear')
 
         devs = list(after_wlan - before_wlan)
-        klass.dev_w_ap = devs[0]
-        klass.dev_w_client = devs[1]
+        cls.dev_w_ap = devs[0]
+        cls.dev_w_client = devs[1]
 
         # don't let NM trample over our fake AP
         with open('/run/NetworkManager/conf.d/test-blacklist.conf', 'w') as f:
-            f.write('[main]\nplugins=keyfile\n[keyfile]\nunmanaged-devices+=nptestsrv,%s\n' % klass.dev_w_ap)
+            f.write(
+                '[main]\nplugins=keyfile\n[keyfile]\nunmanaged-devices+=nptestsrv,%s\n'
+                % cls.dev_w_ap
+            )
 
     @classmethod
-    def shutdown_devices(klass):
+    def shutdown_devices(cls):
         '''Remove test devices'''
         super().shutdown_devices()
-        klass.dev_w_ap = None
-        klass.dev_w_client = None
+        cls.dev_w_ap = None
+        cls.dev_w_client = None
         subprocess.check_call(['rmmod', 'mac80211_hwsim'])
 
     def start_hostapd(self, conf):
@@ -468,7 +478,7 @@ class IntegrationTestsWifi(IntegrationTestsBase):
                              stdout=subprocess.PIPE)
         self.addCleanup(p.wait)
         self.addCleanup(p.terminate)
-        self.poll_text(log, '' + self.dev_w_ap + ': AP-ENABLED', 500)
+        self.poll_text(log, f'{self.dev_w_ap}: AP-ENABLED', 500)
 
     def setup_ap(self, hostapd_conf, ipv6_mode):
         '''Set up simulated access point

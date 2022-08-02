@@ -44,7 +44,7 @@ class NetplanSriovRebind(utils.NetplanCommand):
             pci_addr = _get_pci_slot_name(iface)
             pcidev = PCIDevice(pci_addr)
             if not pcidev.is_pf:
-                logging.warning('{} does not seem to be a SR-IOV physical function'.format(iface))
+                logging.warning(f'{iface} does not seem to be a SR-IOV physical function')
                 continue
             bound_vfs = bind_vfs(pcidev.vfs, pcidev.driver)
-            logging.info('{}: bound {} VFs'.format(pcidev, len(bound_vfs)))
+            logging.info(f'{pcidev}: bound {len(bound_vfs)} VFs')

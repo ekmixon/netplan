@@ -44,7 +44,7 @@ class ConfigManager(object):
     @property
     def interfaces(self):
         interfaces = {}
-        interfaces.update(self.ovs_ports)
+        interfaces |= self.ovs_ports
         interfaces.update(self.ethernets)
         interfaces.update(self.modems)
         interfaces.update(self.wifis)
@@ -57,7 +57,7 @@ class ConfigManager(object):
     @property
     def physical_interfaces(self):
         interfaces = {}
-        interfaces.update(self.ethernets)
+        interfaces |= self.ethernets
         interfaces.update(self.modems)
         interfaces.update(self.wifis)
         return interfaces
@@ -66,7 +66,7 @@ class ConfigManager(object):
     def virtual_interfaces(self):
         interfaces = {}
         # what about ovs_ports?
-        interfaces.update(self.bridges)
+        interfaces |= self.bridges
         interfaces.update(self.bonds)
         interfaces.update(self.tunnels)
         interfaces.update(self.vlans)
@@ -200,8 +200,8 @@ class ConfigManager(object):
             for extra_file in dict(self.extra_files):
                 os.unlink(self.extra_files[extra_file])
                 del self.extra_files[extra_file]
-            temp_nm_path = "{}/NetworkManager/system-connections".format(self.temp_run)
-            temp_networkd_path = "{}/systemd/network".format(self.temp_run)
+            temp_nm_path = f"{self.temp_run}/NetworkManager/system-connections"
+            temp_networkd_path = f"{self.temp_run}/systemd/network"
             if os.path.exists(temp_nm_path):
                 shutil.rmtree(os.path.join(self.prefix, "run/NetworkManager/system-connections"))
                 self._copy_tree(temp_nm_path,
@@ -217,7 +217,7 @@ class ConfigManager(object):
             # Given that we're in some halfway done revert; warn the user
             # aggressively and drop everything; leaving any remaining backups
             # around for the user to handle themselves.
-            logging.error("Something really bad happened while reverting config: {}".format(e))
+            logging.error(f"Something really bad happened while reverting config: {e}")
             logging.error("You should verify the netplan YAML in /etc/netplan and probably run 'netplan apply' again.")
             sys.exit(-1)
 
@@ -238,14 +238,12 @@ class ConfigManager(object):
         try:
             shutil.copytree(src, dst)
         except FileNotFoundError:
-            if missing_ok:
-                pass
-            else:
+            if not missing_ok:
                 raise
 
     def _merge_ovs_ports_config(self, orig, new):
         new_interfaces = set()
-        ports = dict()
+        ports = {}
         if 'ports' in new:
             for p1, p2 in new.get('ports'):
                 # Spoof an interface config for patch ports, which are usually
@@ -257,10 +255,10 @@ class ConfigManager(object):
         for ifname in changed_ifaces:
             iface = ports.pop(ifname)
             if ifname in orig:
-                logging.debug("{} exists in {}".format(ifname, orig))
+                logging.debug(f"{ifname} exists in {orig}")
                 orig[ifname].update(iface)
             else:
-                logging.debug("{} not found in {}".format(ifname, orig))
+                logging.debug(f"{ifname} not found in {orig}")
                 orig[ifname] = iface
                 new_interfaces.add(ifname)
 
@@ -273,10 +271,10 @@ class ConfigManager(object):
         for ifname in changed_ifaces:
             iface = new.pop(ifname)
             if ifname in orig:
-                logging.debug("{} exists in {}".format(ifname, orig))
+                logging.debug(f"{ifname} exists in {orig}")
                 orig[ifname].update(iface)
             else:
-                logging.debug("{} not found in {}".format(ifname, orig))
+                logging.debug(f"{ifname} not found in {orig}")
                 orig[ifname] = iface
                 new_interfaces.add(ifname)
 
@@ -288,9 +286,7 @@ class ConfigManager(object):
         try:
             with open(yaml_file) as f:
                 yaml_data = yaml.load(f, Loader=yaml.CSafeLoader)
-                network = None
-                if yaml_data is not None:
-                    network = yaml_data.get('network')
+                network = yaml_data.get('network') if yaml_data is not None else None
                 if network:
                     if 'openvswitch' in network:
                         new = self._merge_ovs_ports_config(self.ovs_ports, network.get('openvswitch'))
@@ -326,7 +322,7 @@ class ConfigManager(object):
                         self.network['renderer'] = network.get('renderer')
             return new_interfaces
         except (IOError, yaml.YAMLError):  # pragma: nocover (filesystem failures/invalid YAML)
-            logging.error('Error while loading {}, aborting.'.format(yaml_file))
+            logging.error(f'Error while loading {yaml_file}, aborting.')
             sys.exit(1)
 
 

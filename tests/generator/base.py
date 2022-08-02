@@ -36,7 +36,10 @@ exe_generate = os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), 'generate')
 
 # make sure we point to libnetplan properly.
-os.environ.update({'LD_LIBRARY_PATH': '.:{}'.format(os.environ.get('LD_LIBRARY_PATH'))})
+os.environ.update(
+    {'LD_LIBRARY_PATH': f".:{os.environ.get('LD_LIBRARY_PATH')}"}
+)
+
 
 # make sure we fail on criticals
 os.environ['G_DEBUG'] = 'fatal-criticals'
@@ -164,7 +167,10 @@ class NetplanV2Normalizer():
         And normalizing certain netplan special cases
         '''
         if isinstance(data, list):
-            scalars_only = not any(list(map(lambda elem: (isinstance(elem, dict) or isinstance(elem, list)), data)))
+            scalars_only = not any(
+                list(map(lambda elem: isinstance(elem, (dict, list)), data))
+            )
+
             # sort sequence alphabetically
             if scalars_only:
                 data.sort()
@@ -293,7 +299,7 @@ class TestBase(unittest.TestCase):
                         yaml_files_differ = True
                         break
             if yaml_files_differ:  # pragma: no cover (only execited in error case)
-                fromfile = 'original (%s)' % input
+                fromfile = f'original ({input})'
                 for line in difflib.unified_diff(input_lines, output_lines, fromfile, tofile='generated', lineterm=''):
                     print(line, flush=True)
                 self.fail('Re-generated YAML file does not match (adopt netplan.c YAML generator?)')
@@ -317,7 +323,7 @@ class TestBase(unittest.TestCase):
             yaml_input.append(conf)
         if confs:
             for f, contents in confs.items():
-                path = os.path.join(self.confdir, f + '.yaml')
+                path = os.path.join(self.confdir, f'{f}.yaml')
                 with open(path, 'w') as f:
                     f.write(contents)
                 yaml_input.append(path)
@@ -336,8 +342,7 @@ class TestBase(unittest.TestCase):
             self.assertEqual(p.returncode, 0, err)
         self.assertEqual(out, '')
         if not expect_fail and not skip_generated_yaml_validation:
-            yaml_input = list(set(yaml_input + extra_args))
-            yaml_input.sort()
+            yaml_input = sorted(set(yaml_input + extra_args))
             self.validate_generated_yaml(yaml_input)
         return err
 
@@ -356,10 +361,13 @@ class TestBase(unittest.TestCase):
             return
 
         self.assertEqual(set(os.listdir(self.workdir.name)) - {'lib'}, {'etc', 'run'})
-        self.assertEqual(set(os.listdir(networkd_dir)),
-                         {'10-netplan-' + f for f in file_contents_map})
+        self.assertEqual(
+            set(os.listdir(networkd_dir)),
+            {f'10-netplan-{f}' for f in file_contents_map},
+        )
+
         for fname, contents in file_contents_map.items():
-            with open(os.path.join(networkd_dir, '10-netplan-' + fname)) as f:
+            with open(os.path.join(networkd_dir, f'10-netplan-{fname}')) as f:
                 self.assertEqual(f.read(), contents)
 
     def assert_additional_udev(self, file_contents_map):
@@ -376,26 +384,29 @@ class TestBase(unittest.TestCase):
                             (os.listdir(udev_dir) == ['90-netplan.rules']))
             return
 
-        self.assertEqual(set(os.listdir(udev_dir)) - set(['90-netplan.rules']),
-                         {'99-netplan-' + f for f in file_contents_map})
+        self.assertEqual(
+            set(os.listdir(udev_dir)) - {'90-netplan.rules'},
+            {f'99-netplan-{f}' for f in file_contents_map},
+        )
+
         for fname, contents in file_contents_map.items():
-            with open(os.path.join(udev_dir, '99-netplan-' + fname)) as f:
+            with open(os.path.join(udev_dir, f'99-netplan-{fname}')) as f:
                 self.assertEqual(f.read(), contents)
 
     def get_network_config_for_link(self, link_name):
         """Return the content of the .network file for `link_name`."""
         networkd_dir = os.path.join(self.workdir.name, 'run', 'systemd', 'network')
-        with open(os.path.join(networkd_dir, '10-netplan-{}.network'.format(link_name))) as f:
+        with open(os.path.join(networkd_dir, f'10-netplan-{link_name}.network')) as f:
             return f.read()
 
     def get_optional_addresses(self, eth_name):
         config = self.get_network_config_for_link(eth_name)
-        r = set()
         prefix = "OptionalAddresses="
-        for line in config.splitlines():
-            if line.startswith(prefix):
-                r.add(line[len(prefix):])
-        return r
+        return {
+            line[len(prefix) :]
+            for line in config.splitlines()
+            if line.startswith(prefix)
+        }
 
     def assert_nm(self, connections_map=None, conf=None):
         # check config
@@ -403,27 +414,31 @@ class TestBase(unittest.TestCase):
         if conf:
             with open(conf_path) as f:
                 self.assertEqual(f.read(), conf)
-        else:
-            if os.path.exists(conf_path):
-                with open(conf_path) as f:  # pragma: nocover
-                    self.fail('unexpected %s:\n%s' % (conf_path, f.read()))
+        elif os.path.exists(conf_path):
+            with open(conf_path) as f:  # pragma: nocover
+                self.fail('unexpected %s:\n%s' % (conf_path, f.read()))
 
         # check connections
         con_dir = os.path.join(self.workdir.name, 'run', 'NetworkManager', 'system-connections')
         if connections_map:
-            self.assertEqual(set(os.listdir(con_dir)),
-                             set(['netplan-' + n.split('.nmconnection')[0] + '.nmconnection' for n in connections_map]))
+            self.assertEqual(
+                set(os.listdir(con_dir)),
+                {
+                    'netplan-' + n.split('.nmconnection')[0] + '.nmconnection'
+                    for n in connections_map
+                },
+            )
+
             for fname, contents in connections_map.items():
                 extension = ''
                 if '.nmconnection' not in fname:
                     extension = '.nmconnection'
-                with open(os.path.join(con_dir, 'netplan-' + fname + extension)) as f:
+                with open(os.path.join(con_dir, f'netplan-{fname}{extension}')) as f:
                     self.assertEqual(f.read(), contents)
                     # NM connection files might contain secrets
                     self.assertEqual(stat.S_IMODE(os.fstat(f.fileno()).st_mode), 0o600)
-        else:
-            if os.path.exists(con_dir):
-                self.assertEqual(os.listdir(con_dir), [])
+        elif os.path.exists(con_dir):
+            self.assertEqual(os.listdir(con_dir), [])
 
     def assert_nm_udev(self, contents):
         rule_path = os.path.join(self.workdir.name, 'run/udev/rules.d/90-netplan.rules')
@@ -443,9 +458,12 @@ class TestBase(unittest.TestCase):
         self.assertEqual(set(os.listdir(self.workdir.name)) - {'lib'}, {'etc', 'run'})
         ovs_systemd_dir = set(os.listdir(systemd_dir))
         ovs_systemd_dir.remove('systemd-networkd.service.wants')
-        self.assertEqual(ovs_systemd_dir, {'netplan-ovs-' + f for f in file_contents_map})
+        self.assertEqual(
+            ovs_systemd_dir, {f'netplan-ovs-{f}' for f in file_contents_map}
+        )
+
         for fname, contents in file_contents_map.items():
-            fname = 'netplan-ovs-' + fname
+            fname = f'netplan-ovs-{fname}'
             with open(os.path.join(systemd_dir, fname)) as f:
                 self.assertEqual(f.read(), contents)
             if fname.endswith('.service'):
@@ -460,6 +478,9 @@ class TestBase(unittest.TestCase):
     def assert_sriov(self, file_contents_map):
         systemd_dir = os.path.join(self.workdir.name, 'run', 'systemd', 'system')
         sriov_systemd_dir = glob.glob(os.path.join(systemd_dir, '*netplan-sriov-*.service'))
-        self.assertEqual(set(os.path.basename(file) for file in sriov_systemd_dir),
-                         {'netplan-sriov-' + f for f in file_contents_map})
+        self.assertEqual(
+            {os.path.basename(file) for file in sriov_systemd_dir},
+            {f'netplan-sriov-{f}' for f in file_contents_map},
+        )
+
         self.assertEqual(set(os.listdir(self.workdir.name)) - {'lib'}, {'etc', 'run'})

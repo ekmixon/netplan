@@ -141,7 +141,10 @@ class TestSRIOV(unittest.TestCase):
         os.symlink(os.path.join('../../..', pf_pci_addr), os.path.join(sysfs, 'class/net', pf_iface, 'device'))
         # the PF additionally has device links to all the VFs defined for it
         for i in range(len(vfs)):
-            os.symlink(os.path.join('../../..', vfs[i][1]), os.path.join(pf_dev_path, 'virtfn'+str(i)))
+            os.symlink(
+                os.path.join('../../..', vfs[i][1]),
+                os.path.join(pf_dev_path, f'virtfn{str(i)}'),
+            )
 
     @patch('netplan.cli.utils.get_interface_driver_name')
     @patch('netplan.cli.utils.get_interface_macaddress')
@@ -514,7 +517,7 @@ class TestSRIOV(unittest.TestCase):
         netifs.return_value = ['enp1', 'enp2', 'enp5', 'wlp6s0',
                                'enp1s16f1', 'enp1s16f2', 'enp2s16f1']
         get_counts.side_effect = mock_set_counts
-        set_numvfs.side_effect = lambda pf, _: False if pf == 'enp2' else True
+        set_numvfs.side_effect = lambda pf, _: pf != 'enp2'
         gidn.return_value = 'foodriver'
         gim.return_value = '00:01:02:03:04:05'
 
@@ -573,7 +576,7 @@ class TestSRIOV(unittest.TestCase):
         netifs.return_value = ['enp1', 'enp2', 'enp5', 'wlp6s0',
                                'enp1s16f1', 'enp1s16f2', 'enp2s16f1']
         get_counts.side_effect = mock_set_counts
-        set_numvfs.side_effect = lambda pf, _: False if pf == 'enp2' else True
+        set_numvfs.side_effect = lambda pf, _: pf != 'enp2'
         gidn.return_value = 'foodriver'
         gim.return_value = '00:01:02:03:04:05'
 
@@ -646,7 +649,7 @@ class TestSRIOV(unittest.TestCase):
         netifs.return_value = ['enp1', 'enp2', 'enp5', 'wlp6s0',
                                'enp1s16f1', 'enp1s16f2', 'enp2s16f1']
         get_counts.side_effect = mock_set_counts
-        set_numvfs.side_effect = lambda pf, _: False if pf == 'enp2' else True
+        set_numvfs.side_effect = lambda pf, _: pf != 'enp2'
         gidn.return_value = 'foodriver'
         gim.return_value = '00:01:02:03:04:05'
 
@@ -692,7 +695,7 @@ class TestSRIOV(unittest.TestCase):
         netifs.return_value = ['enp1', 'enp2', 'enp5', 'wlp6s0',
                                'enp1s16f1', 'enp1s16f2', 'enp2s16f1']
         get_counts.side_effect = mock_set_counts
-        set_numvfs.side_effect = lambda pf, _: False if pf == 'enp2' else True
+        set_numvfs.side_effect = lambda pf, _: pf != 'enp2'
         gidn.return_value = 'foodriver'
         gim.return_value = '00:01:02:03:04:05'
 

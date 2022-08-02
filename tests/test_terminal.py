@@ -65,7 +65,7 @@ class TestTerminal(unittest.TestCase):
 
     def test_save_and_restore_with_dict(self):
         self.terminal.enable_nonblocking_io()
-        orig_settings = dict()
+        orig_settings = {}
         self.terminal.save(orig_settings)
         self.terminal.disable_nonblocking_io()
         flags = fcntl.fcntl(self.terminal.fd, fcntl.F_GETFL)

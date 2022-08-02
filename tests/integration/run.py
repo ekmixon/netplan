@@ -48,13 +48,20 @@ def dedupe(duped_list):
     return deduped
 
 # XXX: omg, this is ugly :)
-parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 description=textwrap.dedent("""
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent(
+        """
 Test runner for netplan integration tests
 
 Available tests:
 {}
-""".format("\n".join("    - {}".format(x) for x in sorted(possible_tests)))))
+""".format(
+            "\n".join(f"    - {x}" for x in sorted(possible_tests))
+        )
+    ),
+)
+
 
 parser.add_argument('--test', action='append', help="List of tests to be run")
 parser.add_argument('--backend', action='append', help="List of backends to test (NetworkManager, networkd)")
@@ -78,7 +85,7 @@ os.environ["NETPLAN_TEST_BACKENDS"] = ",".join(backends)
 
 returncode = 0
 for test in requested_tests:
-    ret = subprocess.call(['python3', os.path.join(tests_dir, "{}.py".format(test))])
+    ret = subprocess.call(['python3', os.path.join(tests_dir, f"{test}.py")])
     if returncode == 0 and ret != 0:
         returncode = ret
 

@@ -59,14 +59,15 @@ UseMTU=true
     def test_optional_addresses(self):
         eth_name = self.eth_name()
         self.generate(self.config_with_optional_addresses(eth_name, '["dhcp4"]'))
-        self.assertEqual(self.get_optional_addresses(eth_name), set(["dhcp4"]))
+        self.assertEqual(self.get_optional_addresses(eth_name), {"dhcp4"})
 
     def test_optional_addresses_multiple(self):
         eth_name = self.eth_name()
         self.generate(self.config_with_optional_addresses(eth_name, '[dhcp4, ipv4-ll, ipv6-ra, dhcp6, dhcp4, static]'))
         self.assertEqual(
             self.get_optional_addresses(eth_name),
-            set(["ipv4-ll", "ipv6-ra", "dhcp4", "dhcp6", "static"]))
+            {"ipv4-ll", "ipv6-ra", "dhcp4", "dhcp6", "static"},
+        )
 
     def test_optional_addresses_invalid(self):
         eth_name = self.eth_name()

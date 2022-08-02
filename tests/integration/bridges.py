@@ -57,7 +57,10 @@ class _CommonTests():
         self.assertIn(self.dev_e2_client, lines[0])
 
         # ensure that they do not get managed by NM for foreign backends
-        expected_state = (self.backend == 'NetworkManager') and 'connected' or 'unmanaged'
+        expected_state = (
+            'connected' if self.backend == 'NetworkManager' else 'unmanaged'
+        )
+
         out = subprocess.check_output(['nmcli', 'dev'], universal_newlines=True)
         for i in [self.dev_e_client, self.dev_e2_client, 'mybr']:
             self.assertRegex(out, r'%s\s+(ethernet|bridge)\s+%s' % (i, expected_state))
@@ -86,7 +89,7 @@ class _CommonTests():
                                         universal_newlines=True).splitlines()
         self.assertEqual(len(lines), 1, lines)
         self.assertIn(self.dev_e2_client, lines[0])
-        with open('/sys/class/net/mybr/brif/%s/path_cost' % self.dev_e2_client) as f:
+        with open(f'/sys/class/net/mybr/brif/{self.dev_e2_client}/path_cost') as f:
             self.assertEqual(f.read().strip(), '50')
 
     def test_bridge_ageing_time(self):
@@ -244,7 +247,7 @@ class _CommonTests():
                                         universal_newlines=True).splitlines()
         self.assertEqual(len(lines), 1, lines)
         self.assertIn(self.dev_e2_client, lines[0])
-        with open('/sys/class/net/mybr/brif/%s/priority' % self.dev_e2_client) as f:
+        with open(f'/sys/class/net/mybr/brif/{self.dev_e2_client}/priority') as f:
             self.assertEqual(f.read().strip(), '42')
 
 

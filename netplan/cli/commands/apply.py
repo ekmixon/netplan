@@ -94,18 +94,16 @@ class NetplanApply(utils.NetplanCommand):
                                    "Apply",  # the method
                                    ])
 
-            if res != 0:
-                if exit_on_error:
-                    sys.exit(res)
-                elif res == 130:
-                    raise PermissionError(
-                        "failed to communicate with dbus service")
-                else:
-                    raise RuntimeError(
-                        "failed to communicate with dbus service: error %s" % res)
-            else:
+            if res == 0:
                 return
 
+            if exit_on_error:
+                sys.exit(res)
+            elif res == 130:
+                raise PermissionError(
+                    "failed to communicate with dbus service")
+            else:
+                raise RuntimeError(f"failed to communicate with dbus service: error {res}")
         ovs_cleanup_service = '/run/systemd/system/netplan-ovs-cleanup.service'
         old_files_networkd = bool(glob.glob('/run/systemd/network/*netplan-*'))
         old_ovs_glob = glob.glob('/run/systemd/system/netplan-ovs-*')
@@ -216,11 +214,17 @@ class NetplanApply(utils.NetplanCommand):
         for device in devices:
             logging.debug('netplan triggering .link rules for %s', device)
             try:
-                subprocess.check_call(['udevadm', 'test-builtin',
-                                       'net_setup_link',
-                                       '/sys/class/net/' + device],
-                                      stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
+                subprocess.check_call(
+                    [
+                        'udevadm',
+                        'test-builtin',
+                        'net_setup_link',
+                        f'/sys/class/net/{device}',
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+
             except subprocess.CalledProcessError:
                 logging.debug('Ignoring device without syspath: %s', device)
 
@@ -248,8 +252,14 @@ class NetplanApply(utils.NetplanCommand):
         if restart_networkd:
             netplan_wpa = [os.path.basename(f) for f in glob.glob('/run/systemd/system/*.wants/netplan-wpa-*.service')]
             # exclude the special 'netplan-ovs-cleanup.service' unit
-            netplan_ovs = [os.path.basename(f) for f in glob.glob('/run/systemd/system/*.wants/netplan-ovs-*.service')
-                           if not f.endswith('/' + OVS_CLEANUP_SERVICE)]
+            netplan_ovs = [
+                os.path.basename(f)
+                for f in glob.glob(
+                    '/run/systemd/system/*.wants/netplan-ovs-*.service'
+                )
+                if not f.endswith(f'/{OVS_CLEANUP_SERVICE}')
+            ]
+
             # Run 'systemctl start' command synchronously, to avoid race conditions
             # with 'oneshot' systemd service units, e.g. netplan-ovs-*.service.
             try:
@@ -287,7 +297,7 @@ class NetplanApply(utils.NetplanCommand):
         """
         for composite in composites:
             for _, settings in composite.items():
-                if not type(settings) is dict:
+                if type(settings) is not dict:
                     continue
                 members = settings.get('interfaces', [])
                 for iface in members:
@@ -318,12 +328,12 @@ class NetplanApply(utils.NetplanCommand):
                 cmd = ['ip', 'link', 'delete', 'dev', link]
                 subprocess.check_call(cmd)
             except subprocess.CalledProcessError:
-                logging.warn('Could not delete interface {}'.format(link))
+                logging.warn(f'Could not delete interface {link}')
 
         return dropped_interfaces
 
     @staticmethod
-    def process_link_changes(interfaces, config_manager):  # pragma: nocover (covered in autopkgtest)
+    def process_link_changes(interfaces, config_manager):    # pragma: nocover (covered in autopkgtest)
         """
         Go through the pending changes and pick what needs special handling.
         Only applies to non-critical interfaces which can be safely updated.
@@ -345,29 +355,31 @@ class NetplanApply(utils.NetplanCommand):
             if not match:
                 continue  # Skip if no match for current name is given
             if NetplanApply.is_composite_member(composite_interfaces, phy):
-                logging.debug('Skipping composite member {}'.format(phy))
+                logging.debug(f'Skipping composite member {phy}')
                 # do not rename members of virtual devices. MAC addresses
                 # may be the same for all interface members.
                 continue
             # Find current name of the interface, according to match conditions and globs (name, mac, driver)
             current_iface_name = utils.find_matching_iface(interfaces, match)
             if not current_iface_name:
-                logging.warning('Cannot find unique matching interface for {}: {}'.format(phy, match))
+                logging.warning(f'Cannot find unique matching interface for {phy}: {match}')
                 continue
             if current_iface_name == newname:
                 # Skip interface if it already has the correct name
-                logging.debug('Skipping correctly named interface: {}'.format(newname))
+                logging.debug(f'Skipping correctly named interface: {newname}')
                 continue
             if settings.get('critical', False):
                 # Skip interfaces defined as critical, as we should not take them down in order to rename
-                logging.warning('Cannot rename {} ({} -> {}) at runtime (needs reboot), due to being critical'
-                                .format(phy, current_iface_name, newname))
+                logging.warning(
+                    f'Cannot rename {phy} ({current_iface_name} -> {newname}) at runtime (needs reboot), due to being critical'
+                )
+
                 continue
 
             # record the interface rename change
             changes[current_iface_name] = {'name': newname}
 
-        logging.debug('Link changes: {}'.format(changes))
+        logging.debug(f'Link changes: {changes}')
         return changes
 
     @staticmethod

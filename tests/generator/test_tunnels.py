@@ -20,24 +20,20 @@ from .base import TestBase, ND_WITHIPGW, ND_EMPTY, NM_WG, ND_WG
 
 
 def prepare_config_for_mode(renderer, mode, key=None, ttl=None):
-    config = """network:
-  version: 2
-  renderer: {}
-""".format(renderer)
-
-    if mode == "ip6gre" \
-            or mode == "ip6ip6" \
-            or mode == "vti6" \
-            or mode == "ipip6" \
-            or mode == "ip6gretap":
+    if mode in ["ip6gre", "ip6ip6", "vti6", "ipip6", "ip6gretap"]:
         local_ip = "fe80::dead:beef"
         remote_ip = "2001:fe:ad:de:ad:be:ef:1"
     else:
         local_ip = "10.10.10.10"
         remote_ip = "20.20.20.20"
 
-    append_ttl = '\n      ttl: {}'.format(ttl) if ttl else ''
-    config += """
+    append_ttl = f'\n      ttl: {ttl}' if ttl else ''
+    config = """network:
+  version: 2
+  renderer: {}
+""".format(
+        renderer
+    ) + """
   tunnels:
     tun0:
       mode: {}
@@ -45,7 +41,9 @@ def prepare_config_for_mode(renderer, mode, key=None, ttl=None):
       remote: {}{}
       addresses: [ 15.15.15.15/24 ]
       gateway4: 20.20.20.21
-""".format(mode, local_ip, remote_ip, append_ttl)
+""".format(
+        mode, local_ip, remote_ip, append_ttl
+    )
 
     # Handle key/keys as str or dict as required by the test
     if type(key) is str:
@@ -73,11 +71,11 @@ def prepare_wg_config(listen=None, privkey=None, fwmark=None, peers=[], renderer
       gateway4: 20.20.20.21
 ''' % renderer
     if privkey is not None:
-        config += '      key: {}\n'.format(privkey)
+        config += f'      key: {privkey}\n'
     if fwmark is not None:
-        config += '      mark: {}\n'.format(fwmark)
+        config += f'      mark: {fwmark}\n'
     if listen is not None:
-        config += '      port: {}\n'.format(listen)
+        config += f'      port: {listen}\n'
     if len(peers) > 0:
         config += '      peers:\n'
     for peer in peers:
@@ -87,14 +85,14 @@ def prepare_wg_config(listen=None, privkey=None, fwmark=None, peers=[], renderer
         peer.pop('shared-key', None)
         pfx = '        - '
         for k, v in peer.items():
-            config += '{}{}: {}\n'.format(pfx, k, v)
+            config += f'{pfx}{k}: {v}\n'
             pfx = '          '
         if public_key or shared_key:
-            config += '{}keys:\n'.format(pfx)
-            if public_key:
-                config += '            public: {}\n'.format(public_key)
-            if shared_key:
-                config += '            shared: {}\n'.format(shared_key)
+            config += f'{pfx}keys:\n'
+        if public_key:
+            config += f'            public: {public_key}\n'
+        if shared_key:
+            config += f'            shared: {shared_key}\n'
     return config
 
 

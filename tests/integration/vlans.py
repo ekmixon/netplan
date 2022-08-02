@@ -60,8 +60,14 @@ class _CommonTests():
         self.generate_and_settle([self.state_dhcp4(self.dev_e2_client),
                                   'nptestone',
                                   self.state_dhcp4('nptesttwo')])
-        self.assert_iface_up('nptestone', ['nptestone@' + self.dev_e2_client, 'inet 10.9.8.7/24'])
-        self.assert_iface_up('nptesttwo', ['nptesttwo@' + self.dev_e2_client, 'inet 192.168.5'])
+        self.assert_iface_up(
+            'nptestone', [f'nptestone@{self.dev_e2_client}', 'inet 10.9.8.7/24']
+        )
+
+        self.assert_iface_up(
+            'nptesttwo', [f'nptesttwo@{self.dev_e2_client}', 'inet 192.168.5']
+        )
+
         self.assertNotIn(b'default',
                          subprocess.check_output(['ip', 'route', 'show', 'dev', 'nptestone']))
         self.assertIn(b'default via 192.168.5.1',  # from DHCP
@@ -83,7 +89,7 @@ class _CommonTests():
       macaddress: aa:bb:cc:dd:ee:22
         ''' % {'r': self.backend, 'ec': self.dev_e_client})
         self.generate_and_settle([self.dev_e_client, 'myvlan'])
-        self.assert_iface_up('myvlan', ['myvlan@' + self.dev_e_client])
+        self.assert_iface_up('myvlan', [f'myvlan@{self.dev_e_client}'])
         with open('/sys/class/net/myvlan/address') as f:
             self.assertEqual(f.read().strip(), 'aa:bb:cc:dd:ee:22')
 

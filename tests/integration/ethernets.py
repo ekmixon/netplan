@@ -111,7 +111,10 @@ class _CommonTests():
                          subprocess.check_output(['ip', '-6', 'route', 'show', 'dev', self.dev_e2_client]))
 
         # ensure that they do not get managed by NM for foreign backends
-        expected_state = (self.backend == 'NetworkManager') and 'connected' or 'unmanaged'
+        expected_state = (
+            'connected' if self.backend == 'NetworkManager' else 'unmanaged'
+        )
+
         out = subprocess.check_output(['nmcli', 'dev'], universal_newlines=True)
         for i in [self.dev_e_client, self.dev_e2_client]:
             self.assertRegex(out, r'%s\s+(ethernet|bridge)\s+%s' % (i, expected_state))

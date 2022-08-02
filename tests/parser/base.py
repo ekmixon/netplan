@@ -34,7 +34,10 @@ exe_generate = os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), 'generate')
 
 # make sure we point to libnetplan properly.
-os.environ.update({'LD_LIBRARY_PATH': '.:{}'.format(os.environ.get('LD_LIBRARY_PATH'))})
+os.environ.update(
+    {'LD_LIBRARY_PATH': f".:{os.environ.get('LD_LIBRARY_PATH')}"}
+)
+
 
 # make sure we fail on criticals
 os.environ['G_DEBUG'] = 'fatal-criticals'
@@ -89,11 +92,14 @@ class TestKeyfileBase(unittest.TestCase):
                     found_values += 1
                 if found_values >= 2:
                     break
-            netdef_id = 'NM-' + uuid
-        generated_file = 'netplan-{}{}.nmconnection'.format(netdef_id, ssid)
+            netdef_id = f'NM-{uuid}'
+        generated_file = f'netplan-{netdef_id}{ssid}.nmconnection'
         original_file = filename or generated_file
-        f = os.path.join(self.workdir.name,
-                         'run/NetworkManager/system-connections/{}'.format(original_file))
+        f = os.path.join(
+            self.workdir.name,
+            f'run/NetworkManager/system-connections/{original_file}',
+        )
+
         os.makedirs(os.path.dirname(f))
         # Create the original keyfile that will be parsed by netplan
         with open(f, 'w') as file:
@@ -118,13 +124,15 @@ class TestKeyfileBase(unittest.TestCase):
                 # check re-generated keyfile
                 self.assert_nm_regenerate({generated_file: keyfile})
             with open(outf.name, 'r') as f:
-                output = f.read().strip()  # output from stderr (fd=2) on C/library level
-                return output
+                return f.read().strip()
 
     def assert_netplan(self, file_contents_map):
         for uuid in file_contents_map.keys():
-            self.assertTrue(os.path.isfile(os.path.join(self.confdir, '90-NM-{}.yaml'.format(uuid))))
-            with open(os.path.join(self.confdir, '90-NM-{}.yaml'.format(uuid)), 'r') as f:
+            self.assertTrue(
+                os.path.isfile(os.path.join(self.confdir, f'90-NM-{uuid}.yaml'))
+            )
+
+            with open(os.path.join(self.confdir, f'90-NM-{uuid}.yaml'), 'r') as f:
                 self.assertEqual(f.read(), file_contents_map[uuid])
 
     def normalize_keyfile(self, file_contents):
@@ -156,7 +164,7 @@ class TestKeyfileBase(unittest.TestCase):
                     v = v.replace(',::', ',').replace(',0.0.0.0', ',')
                     v = v.strip(',')
 
-                line = (k + '=' + v).strip(';')
+                line = f'{k}={v}'.strip(';')
                 res.append(line)
         return '\n'.join(res).strip()+'\n'
 
@@ -170,15 +178,13 @@ class TestKeyfileBase(unittest.TestCase):
         self.assertEqual(out, '')
         con_dir = os.path.join(self.workdir.name, 'run', 'NetworkManager', 'system-connections')
         if file_contents_map:
-            self.assertEqual(set(os.listdir(con_dir)),
-                             set([n for n in file_contents_map]))
+            self.assertEqual(set(os.listdir(con_dir)), set(list(file_contents_map)))
             for fname, contents in file_contents_map.items():
                 with open(os.path.join(con_dir, fname)) as f:
                     generated_keyfile = self.normalize_keyfile(f.read())
                     normalized_contents = self.normalize_keyfile(contents)
                     self.assertEqual(generated_keyfile, normalized_contents,
                                      'Re-generated keyfile does not match')
-        else:  # pragma: nocover (only needed for test debugging)
-            if os.path.exists(con_dir):
-                self.assertEqual(os.listdir(con_dir), [])
+        elif os.path.exists(con_dir):
+            self.assertEqual(os.listdir(con_dir), [])
         return err

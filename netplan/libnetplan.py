@@ -159,10 +159,10 @@ class State:
         return lib.netplan_state_get_netdefs_size(self._ptr)
 
     def __getitem__(self, def_id):
-        ptr = lib.netplan_state_get_netdef(self._ptr, def_id.encode('utf-8'))
-        if not ptr:
+        if ptr := lib.netplan_state_get_netdef(self._ptr, def_id.encode('utf-8')):
+            return NetDefinition(self, ptr)
+        else:
             raise IndexError()
-        return NetDefinition(self, ptr)
 
 
 class NetDefinition:
@@ -179,9 +179,12 @@ class NetDefinition:
         cls._abi_loaded = True
 
     def __eq__(self, other):
-        if not hasattr(other, '_ptr'):
-            return False
-        return ctypes.addressof(self._ptr.contents) == ctypes.addressof(other._ptr.contents)
+        return (
+            ctypes.addressof(self._ptr.contents)
+            == ctypes.addressof(other._ptr.contents)
+            if hasattr(other, '_ptr')
+            else False
+        )
 
     def __init__(self, np_state, ptr):
         self._load_abi()
@@ -244,10 +247,10 @@ class _NetdefIterator:
         return self
 
     def __next__(self):
-        next_value = lib._netplan_iter_defs_per_devtype_next(self.iterator)
-        if not next_value:
+        if next_value := lib._netplan_iter_defs_per_devtype_next(self.iterator):
+            return NetDefinition(self.np_state, next_value)
+        else:
             raise StopIteration
-        return NetDefinition(self.np_state, next_value)
 
 
 class __GlobalState(State):

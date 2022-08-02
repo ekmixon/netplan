@@ -65,4 +65,4 @@ class NetplanInfo(utils.NetplanCommand):
   website: "{}"
   features:'''.format(netplan_version['netplan.io']['website']))
             for feature in netplan._features.NETPLAN_FEATURE_FLAGS:
-                print('  - ' + feature)
+                print(f'  - {feature}')

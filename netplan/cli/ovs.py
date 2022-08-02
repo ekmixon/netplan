@@ -44,7 +44,9 @@ def _del_col(type, iface, column, value):
         subprocess.check_call([OPENVSWITCH_OVS_VSCTL, 'remove', type, iface, column, value])
     elif default and default != value:
         # reset to default, if its not the default already
-        subprocess.check_call([OPENVSWITCH_OVS_VSCTL, 'set', type, iface, '%s=%s' % (column, default)])
+        subprocess.check_call(
+            [OPENVSWITCH_OVS_VSCTL, 'set', type, iface, f'{column}={default}']
+        )
 
 
 def _del_dict(type, iface, column, key, value):
@@ -64,30 +66,29 @@ def _del_global(type, iface, key, value):
     if del_cmd == 'del-ssl':
         iface = None
 
-    if del_cmd:
-        args_get = [OPENVSWITCH_OVS_VSCTL, get_cmd]
-        args_del = [OPENVSWITCH_OVS_VSCTL, del_cmd]
-        if iface:
-            args_get.append(iface)
-            args_del.append(iface)
-        # Check the current value of a global command and compare it to the tag-value, e.g.:
-        # * get-ssl: netplan/global/set-ssl=/private/key.pem,/another/cert.pem,/some/ca-cert.pem
-        # Private key: /private/key.pem
-        # Certificate: /another/cert.pem
-        # CA Certificate: /some/ca-cert.pem
-        # Bootstrap: false
-        # * get-fail-mode: netplan/global/set-fail-mode=secure
-        # secure
-        # * get-controller: netplan/global/set-controller=tcp:127.0.0.1:1337,unix:/some/socket
-        # tcp:127.0.0.1:1337
-        # unix:/some/socket
-        out = subprocess.check_output(args_get, universal_newlines=True)
-        # Clean it only if the exact same value(s) were set by netplan.
-        # Don't touch it if other values were set by another integration.
-        if all(item in out for item in value.split(',')):
-            subprocess.check_call(args_del)
-    else:
+    if not del_cmd:
         raise Exception('Reset command unkown for:', key)
+    args_get = [OPENVSWITCH_OVS_VSCTL, get_cmd]
+    args_del = [OPENVSWITCH_OVS_VSCTL, del_cmd]
+    if iface:
+        args_get.append(iface)
+        args_del.append(iface)
+    # Check the current value of a global command and compare it to the tag-value, e.g.:
+    # * get-ssl: netplan/global/set-ssl=/private/key.pem,/another/cert.pem,/some/ca-cert.pem
+    # Private key: /private/key.pem
+    # Certificate: /another/cert.pem
+    # CA Certificate: /some/ca-cert.pem
+    # Bootstrap: false
+    # * get-fail-mode: netplan/global/set-fail-mode=secure
+    # secure
+    # * get-controller: netplan/global/set-controller=tcp:127.0.0.1:1337,unix:/some/socket
+    # tcp:127.0.0.1:1337
+    # unix:/some/socket
+    out = subprocess.check_output(args_get, universal_newlines=True)
+    # Clean it only if the exact same value(s) were set by netplan.
+    # Don't touch it if other values were set by another integration.
+    if all(item in out for item in value.split(',')):
+        subprocess.check_call(args_del)
 
 
 def clear_setting(type, iface, setting, value):
@@ -107,7 +108,7 @@ def clear_setting(type, iface, setting, value):
 def is_ovs_interface(iface, interfaces):
     assert isinstance(interfaces, dict)
     if not isinstance(interfaces.get(iface), dict):
-        logging.debug('Ignoring special key: {} ({})'.format(iface, interfaces.get(iface)))
+        logging.debug(f'Ignoring special key: {iface} ({interfaces.get(iface)})')
         return False
     elif interfaces.get(iface, {}).get('openvswitch') is not None:
         return True
@@ -115,7 +116,7 @@ def is_ovs_interface(iface, interfaces):
         return any(is_ovs_interface(i, interfaces) for i in interfaces.get(iface, {}).get('interfaces', []))
 
 
-def apply_ovs_cleanup(config_manager, ovs_old, ovs_current):  # pragma: nocover (covered in autopkgtest)
+def apply_ovs_cleanup(config_manager, ovs_old, ovs_current):    # pragma: nocover (covered in autopkgtest)
     """
     Query OpenVSwitch state through 'ovs-vsctl' and filter for netplan=true
     tagged ports/bonds and bridges. Delete interfaces which are not defined
@@ -124,10 +125,11 @@ def apply_ovs_cleanup(config_manager, ovs_old, ovs_current):  # pragma: nocover 
     in external-ids and clear them if they have been set by netplan.
     """
     config_manager.parse()
-    ovs_ifaces = set()
-    for i in config_manager.interfaces.keys():
-        if (is_ovs_interface(i, config_manager.interfaces)):
-            ovs_ifaces.add(i)
+    ovs_ifaces = {
+        i
+        for i in config_manager.interfaces.keys()
+        if (is_ovs_interface(i, config_manager.interfaces))
+    }
 
     # Tear down old OVS interfaces, not defined in the current config.
     # Use 'del-br' on the Interface table, to delete any netplan created VLAN fake bridges.
@@ -152,13 +154,25 @@ def apply_ovs_cleanup(config_manager, ovs_old, ovs_current):  # pragma: nocover 
         # Step 2: Clean up the settings of the remaining interfaces
         for t in ('Port', 'Bridge', 'Interface', 'Open_vSwitch', 'Controller'):
             cols = 'name,external-ids'
-            if t == 'Open_vSwitch':
-                cols = 'external-ids'
-            elif t == 'Controller':
+            if t == 'Controller':
                 cols = '_uuid,external-ids'  # handle _uuid as if it would be the iface 'name'
-            out = subprocess.check_output([OPENVSWITCH_OVS_VSCTL, '--columns=%s' % cols,
-                                           '-f', 'csv', '-d', 'bare', '--no-headings', 'list', t],
-                                          universal_newlines=True)
+            elif t == 'Open_vSwitch':
+                cols = 'external-ids'
+            out = subprocess.check_output(
+                [
+                    OPENVSWITCH_OVS_VSCTL,
+                    f'--columns={cols}',
+                    '-f',
+                    'csv',
+                    '-d',
+                    'bare',
+                    '--no-headings',
+                    'list',
+                    t,
+                ],
+                universal_newlines=True,
+            )
+
             for line in out.splitlines():
                 if 'netplan/' in line:
                     iface = '.'
@@ -173,6 +187,5 @@ def apply_ovs_cleanup(config_manager, ovs_old, ovs_current):  # pragma: nocover 
                             setting, val = entry.split('=', 1)
                             clear_setting(t, iface, setting, val)
 
-    # Show the warning only if we are or have been working with OVS definitions
     elif ovs_old or ovs_current:
         logging.warning('ovs-vsctl is missing, cannot tear down old OpenVSwitch interfaces')

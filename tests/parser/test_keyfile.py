@@ -347,15 +347,23 @@ route1_options=unknown=invalid,
         file = os.path.join(self.workdir.name, 'tmp/some.keyfile')
         os.makedirs(os.path.dirname(file))
         with open(file, 'w') as f:
-            f.write('[connection]\ntype={}\nuuid={}'.format(nm_type, UUID))
+            f.write(f'[connection]\ntype={nm_type}\nuuid={UUID}')
         self.assertEqual(lib.netplan_clear_netdefs(), 0)
         lib.netplan_parse_keyfile(file.encode(), None)
-        lib._write_netplan_conf('NM-{}'.format(UUID).encode(), self.workdir.name.encode())
+        lib._write_netplan_conf(f'NM-{UUID}'.encode(), self.workdir.name.encode())
         lib.netplan_clear_netdefs()
-        self.assertTrue(os.path.isfile(os.path.join(self.confdir, '90-NM-{}.yaml'.format(UUID))))
-        t = '\n        passthrough:\n          connection.type: "{}"'.format(nm_type) if not supported else ''
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.confdir, f'90-NM-{UUID}.yaml'))
+        )
+
+        t = (
+            ''
+            if supported
+            else f'\n        passthrough:\n          connection.type: "{nm_type}"'
+        )
+
         match = '\n      match: {}' if nd_type in ['ethernets', 'modems', 'wifis'] else ''
-        with open(os.path.join(self.confdir, '90-NM-{}.yaml'.format(UUID)), 'r') as f:
+        with open(os.path.join(self.confdir, f'90-NM-{UUID}.yaml'), 'r') as f:
             self.assertEqual(f.read(), '''network:
   version: 2
   {}:
@@ -600,8 +608,15 @@ mode=ap'''.format(UUID))
         self._template_keyfile_type_wifi('infrastructure', 'mesh')
 
     def test_keyfile_type_wifi_missing_ssid(self):
-        err = self.generate_from_keyfile('''[connection]\ntype=wifi\nuuid={}\nid=myid with spaces'''.format(UUID), expect_fail=True)
-        self.assertFalse(os.path.isfile(os.path.join(self.confdir, '90-NM-{}.yaml'.format(UUID))))
+        err = self.generate_from_keyfile(
+            f'''[connection]\ntype=wifi\nuuid={UUID}\nid=myid with spaces''',
+            expect_fail=True,
+        )
+
+        self.assertFalse(
+            os.path.isfile(os.path.join(self.confdir, f'90-NM-{UUID}.yaml'))
+        )
+
         self.assertIn('netplan: Keyfile: cannot find SSID for WiFi connection', err)
 
     def test_keyfile_wake_on_lan(self):

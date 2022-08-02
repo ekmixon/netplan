@@ -118,31 +118,27 @@ Bootstrap: false'''
         mock.mock_calls
 
     def test_is_ovs_interface(self):
-        interfaces = dict()
-        interfaces['ovs0'] = {'openvswitch': {'set-fail-mode': 'secure'}}
+        interfaces = {'ovs0': {'openvswitch': {'set-fail-mode': 'secure'}}}
         self.assertTrue(ovs.is_ovs_interface('ovs0', interfaces))
 
     def test_is_ovs_interface_false(self):
-        interfaces = dict()
-        interfaces['br0'] = {'interfaces': ['eth0', 'eth1']}
-        interfaces['eth0'] = {}
-        interfaces['eth1'] = {}
+        interfaces = {'br0': {'interfaces': ['eth0', 'eth1']}, 'eth0': {}, 'eth1': {}}
         self.assertFalse(ovs.is_ovs_interface('br0', interfaces))
 
     def test_is_ovs_interface_recursive(self):
-        interfaces = dict()
-        interfaces['patchx'] = {'peer': 'patchy', 'openvswitch': {}}
-        interfaces['patchy'] = {'peer': 'patchx', 'openvswitch': {}}
-        interfaces['ovs0'] = {'interfaces': ['bond0']}
-        interfaces['bond0'] = {'interfaces': ['patchx', 'patchy']}
+        interfaces = {
+            'patchx': {'peer': 'patchy', 'openvswitch': {}},
+            'patchy': {'peer': 'patchx', 'openvswitch': {}},
+            'ovs0': {'interfaces': ['bond0']},
+            'bond0': {'interfaces': ['patchx', 'patchy']},
+        }
+
         self.assertTrue(ovs.is_ovs_interface('ovs0', interfaces))
 
     def test_is_ovs_interface_invalid_key(self):
-        interfaces = dict()
-        interfaces['ovs0'] = {'openvswitch': {'set-fail-mode': 'secure'}}
+        interfaces = {'ovs0': {'openvswitch': {'set-fail-mode': 'secure'}}}
         self.assertFalse(ovs.is_ovs_interface('gretap1', interfaces))
 
     def test_is_ovs_interface_special_key(self):
-        interfaces = dict()
-        interfaces['renderer'] = 'NetworkManager'
+        interfaces = {'renderer': 'NetworkManager'}
         self.assertFalse(ovs.is_ovs_interface('renderer', interfaces))

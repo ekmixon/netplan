@@ -137,7 +137,7 @@ class TestRawLibnetplan(TestBase):
     def test_write_netplan_conf(self):
         netdef_id = 'some-netplan-id'
         orig = os.path.join(self.confdir, 'some-filename.yaml')
-        generated = os.path.join(self.confdir, '10-netplan-{}.yaml'.format(netdef_id))
+        generated = os.path.join(self.confdir, f'10-netplan-{netdef_id}.yaml')
         with open(orig, 'w') as f:
             f.write('''network:
   version: 2
@@ -170,7 +170,10 @@ class TestNetdefIterator(TestBase):
   bridges:
     br0:
       dhcp4: false''')
-        self.assertSetEqual(set(["eth0", "br0"]), set(d.id for d in libnetplan._NetdefIterator(state, None)))
+        self.assertSetEqual(
+            {"eth0", "br0"},
+            {d.id for d in libnetplan._NetdefIterator(state, None)},
+        )
 
     def test_iter_ethernets(self):
         state = state_from_yaml(self.confdir, '''network:
@@ -182,7 +185,10 @@ class TestNetdefIterator(TestBase):
   bridges:
     br0:
       dhcp4: false''')
-        self.assertSetEqual(set(["eth0", "eth1"]), set(d.id for d in libnetplan._NetdefIterator(state, "ethernets")))
+        self.assertSetEqual(
+            {"eth0", "eth1"},
+            {d.id for d in libnetplan._NetdefIterator(state, "ethernets")},
+        )
 
 
 class TestState(TestBase):
@@ -326,8 +332,13 @@ class TestFreeFunctions(TestBase):
       link: id_b
       dhcp4: true''')
         self.assertSetEqual(
-                set(libnetplan.netplan_get_ids_for_devtype("ethernets", self.workdir.name)),
-                set(["id_a", "id_b"]))
+            set(
+                libnetplan.netplan_get_ids_for_devtype(
+                    "ethernets", self.workdir.name
+                )
+            ),
+            {"id_a", "id_b"},
+        )
 
     def test_netplan_get_ids_for_devtype_no_dev(self):
         path = os.path.join(self.workdir.name, 'etc/netplan/a.yaml')

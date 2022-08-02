@@ -70,7 +70,10 @@ class _CommonTests():
         if self.backend == 'NetworkManager':
             out = subprocess.check_output(['nmcli', 'dev', 'show', self.dev_w_client],
                                           universal_newlines=True)
-            self.assertRegex(out, 'GENERAL.CONNECTION.*netplan-%s-fake net' % self.dev_w_client)
+            self.assertRegex(
+                out, f'GENERAL.CONNECTION.*netplan-{self.dev_w_client}-fake net'
+            )
+
             self.assertRegex(out, 'IP4.DNS.*192.168.5.1')
         else:
             out = subprocess.check_output(['networkctl', 'status', self.dev_w_client],
@@ -104,7 +107,10 @@ wpa_passphrase=12345678
         if self.backend == 'NetworkManager':
             out = subprocess.check_output(['nmcli', 'dev', 'show', self.dev_w_client],
                                           universal_newlines=True)
-            self.assertRegex(out, 'GENERAL.CONNECTION.*netplan-%s-fake net' % self.dev_w_client)
+            self.assertRegex(
+                out, f'GENERAL.CONNECTION.*netplan-{self.dev_w_client}-fake net'
+            )
+
             self.assertRegex(out, 'IP4.DNS.*192.168.5.1')
         else:
             out = subprocess.check_output(['networkctl', 'status', self.dev_w_client],

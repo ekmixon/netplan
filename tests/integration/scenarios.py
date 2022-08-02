@@ -106,7 +106,7 @@ class _CommonTests():
 ''' % {'r': self.backend, 'ec': self.dev_e_client, 'e2c': self.dev_e2_client})
         self.generate_and_settle([self.dev_e_client, self.dev_e2_client, 'br0', 'br1', 'bond0', 'vlan1', 'vlan2'])
         self.assert_iface_up('vlan1', ['vlan1@br0'])
-        self.assert_iface_up('vlan2', ['vlan2@' + self.dev_e_client, 'master br0'])
+        self.assert_iface_up('vlan2', [f'vlan2@{self.dev_e_client}', 'master br0'])
         self.assert_iface_up(self.dev_e2_client, ['master br1'], ['inet '])
         self.assert_iface_up('bond0', ['master br0'])
 

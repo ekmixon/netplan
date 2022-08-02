@@ -108,14 +108,17 @@ class NetplanIpLeases(utils.NetplanCommand):
                                 if 'connection.uuid' in line:
                                     return line.split(':')[1].rstrip().strip()
                 except Exception as e:
-                    raise Exception('Could not find a NetworkManager connection for the interface: %s' % str(e))
+                    raise Exception(
+                        f'Could not find a NetworkManager connection for the interface: {str(e)}'
+                    )
+
                 raise Exception('Could not find a NetworkManager connection for the interface')
 
             lease_pattern = lease_path[mapping['backend']]['pattern']
             lease_method = lease_path[mapping['backend']]['method']
 
             try:
-                lease_id = eval("lease_method_" + lease_method)()
+                lease_id = eval(f"lease_method_{lease_method}")()
 
                 # We found something to build the path to the lease file with,
                 # at this point we may have something to look at; but if not,

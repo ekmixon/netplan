@@ -33,7 +33,9 @@ if shutil.which('python3-coverage'):
 
 # Make sure we can import our development netplan.
 os.environ.update({'PYTHONPATH': '.'})
-os.environ.update({'LD_LIBRARY_PATH': '.:{}'.format(os.environ.get('LD_LIBRARY_PATH'))})
+os.environ.update(
+    {'LD_LIBRARY_PATH': f".:{os.environ.get('LD_LIBRARY_PATH')}"}
+)
 
 
 def _load_yaml(text):
@@ -279,7 +281,7 @@ source-directory /etc/network/interfaces.d''')[0]
         self.assertFalse(os.path.exists(self.converted_path))
         # should disable original ifupdown config
         self.assertFalse(os.path.exists(self.ifaces_path))
-        self.assertTrue(os.path.exists(self.ifaces_path + '.netplan-converted'))
+        self.assertTrue(os.path.exists(f'{self.ifaces_path}.netplan-converted'))
 
     def test_write_file_haveconfig(self):
         (out, err) = self.do_test('auto en1\niface en1 inet dhcp', dry_run=False)
@@ -291,7 +293,7 @@ source-directory /etc/network/interfaces.d''')[0]
 
         # should disable original ifupdown config
         self.assertFalse(os.path.exists(self.ifaces_path))
-        self.assertTrue(os.path.exists(self.ifaces_path + '.netplan-converted'))
+        self.assertTrue(os.path.exists(f'{self.ifaces_path}.netplan-converted'))
 
     def test_write_file_prev_run(self):
         os.makedirs(os.path.dirname(self.converted_path))

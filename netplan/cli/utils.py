@@ -37,11 +37,7 @@ def is_nm_snap_enabled():
 
 
 def nmcli(args):  # pragma: nocover (covered in autopkgtest)
-    binary_name = 'nmcli'
-
-    if is_nm_snap_enabled():
-        binary_name = 'network-manager.nmcli'
-
+    binary_name = 'network-manager.nmcli' if is_nm_snap_enabled() else 'nmcli'
     subprocess.check_call([binary_name] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -61,10 +57,9 @@ def nm_interfaces(paths, devices):
     for path in paths:
         with open(path, 'r') as f:
             for line in f:
-                m = pat.match(line)
-                if m:
+                if m := pat.match(line):
                     # Expand/match globbing of interface names, to real devices
-                    interfaces.update(set(fnmatch.filter(devices, m.group(1))))
+                    interfaces.update(set(fnmatch.filter(devices, m[1])))
                     break  # skip to next file
     return interfaces
 
@@ -110,9 +105,10 @@ def networkctl_reconfigure(interfaces):
 
 def systemctl_is_active(unit_pattern):
     '''Return True if at least one matching unit is running'''
-    if subprocess.call(['systemctl', '--quiet', 'is-active', unit_pattern]) == 0:
-        return True
-    return False
+    return (
+        subprocess.call(['systemctl', '--quiet', 'is-active', unit_pattern])
+        == 0
+    )
 
 
 def systemctl_daemon_reload():
@@ -213,9 +209,12 @@ class NetplanCommand(argparse.Namespace):
         self.subcommand = None
         self.func = None
 
-        self.parser = argparse.ArgumentParser(prog="%s %s" % (sys.argv[0], command_id),
-                                              description=description,
-                                              add_help=True)
+        self.parser = argparse.ArgumentParser(
+            prog=f"{sys.argv[0]} {command_id}",
+            description=description,
+            add_help=True,
+        )
+
         self.parser.add_argument('--debug', action='store_true',
                                  help='Enable debug messages')
         if not leaf:
@@ -257,9 +256,8 @@ class NetplanCommand(argparse.Namespace):
         self.subcommands[name]['class'] = name
         self.subcommands[name]['instance'] = instance
 
-        if instance.testing:
-            if not os.environ.get('ENABLE_TEST_COMMANDS', None):
-                return
+        if instance.testing and not os.environ.get('ENABLE_TEST_COMMANDS', None):
+            return
 
         p = self.subparsers.add_parser(instance.command_id,
                                        description=instance.description,

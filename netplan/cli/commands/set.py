@@ -55,14 +55,16 @@ class NetplanSet(NetplanCommand):
         self.run_command()
 
     def is_emtpy_yaml(self, tree):
-        if isinstance(tree, dict) and list(tree.keys()) == ['network'] and tree['network'] is None:
-            return True
-        return False
+        return (
+            isinstance(tree, dict)
+            and list(tree.keys()) == ['network']
+            and tree['network'] is None
+        )
 
     def split_tree_by_hint(self, set_tree) -> (str, dict):
         network = set_tree.get('network', {})
         # A mapping of 'origin-hint' -> YAML tree (one subtree per netdef)
-        subtrees = dict()
+        subtrees = {}
         for devtype in network:
             if devtype in GLOBAL_KEYS:
                 continue  # special handling of global keys down below
@@ -75,8 +77,9 @@ class NetplanSet(NetplanCommand):
                 network[devtype] = devtype_content
             for netdef in devtype_content:
                 hint = FALLBACK_HINT
-                filename = libnetplan.netplan_get_filename_by_id(netdef, self.root_dir)
-                if filename:
+                if filename := libnetplan.netplan_get_filename_by_id(
+                    netdef, self.root_dir
+                ):
                     hint = os.path.basename(filename)[:-5]  # strip prefix and .yaml
                 netdef_tree = {'network': {devtype: {netdef: network.get(devtype).get(netdef)}}}
                 # Merge all netdef trees which are going to be written to the same file/hint
@@ -108,7 +111,7 @@ class NetplanSet(NetplanCommand):
         if self.is_emtpy_yaml(set_tree):
             path = os.path.join('etc', 'netplan')
             if self.origin_hint:  # clear specific hint file, it it does exist
-                hint_path = os.path.join(self.root_dir, path, self.origin_hint + '.yaml')
+                hint_path = os.path.join(self.root_dir, path, f'{self.origin_hint}.yaml')
                 if os.path.isfile(hint_path):
                     os.remove(hint_path)
             else:  # clear all YAML files in <ROOT_DIR>/etc/netplan/*.yaml
@@ -123,24 +126,22 @@ class NetplanSet(NetplanCommand):
             hints = self.split_tree_by_hint(set_tree)
 
         for hint, subtree in hints:
-            self.write_file(subtree, hint + '.yaml', self.root_dir)
+            self.write_file(subtree, f'{hint}.yaml', self.root_dir)
 
     def parse_key(self, key, value):
         # The 'network.' prefix is optional for netsted keys, its always assumed to be there
-        if not key.startswith('network.') and not key == 'network':
-            key = 'network.' + key
+        if not key.startswith('network.') and key != 'network':
+            key = f'network.{key}'
         # Split at '.' but not at '\.' via negative lookbehind expression
         split = re.split(r'(?<!\\)\.', key)
         tree = {}
-        i = 1
         t = tree
-        for part in split:
+        for i, part in enumerate(split, start=1):
             part = part.replace('\\.', '.')  # Unescape interface-ids, containing dots
             val = {}
             if i == len(split):
                 val = value
             t = t.setdefault(part, val)
-            i += 1
         return tree
 
     def merge(self, a, b, path=None):
@@ -178,10 +179,10 @@ class NetplanSet(NetplanCommand):
 
         new_tree = self.merge(config, set_tree)
         stripped = ConfigManager.strip_tree(new_tree)
-        logging.debug('Writing file {}: {}'.format(name, stripped))
+        logging.debug(f'Writing file {name}: {stripped}')
         if 'network' in stripped and list(stripped['network'].keys()) == ['version']:
             # Clear file if only 'network: {version: 2}' is left
-            logging.debug('Empty YAML, deleting file {}'.format(absp))
+            logging.debug(f'Empty YAML, deleting file {absp}')
             if os.path.isfile(absp):
                 os.remove(absp)
         elif 'network' in stripped:
@@ -197,8 +198,8 @@ class NetplanSet(NetplanCommand):
         elif stripped == {}:
             # Clear file (if it exists) if the last/only key got removed
             # do nothing otherwise
-            logging.debug('Removed last key from YAML, deleting file {}'.format(absp))
+            logging.debug(f'Removed last key from YAML, deleting file {absp}')
             if os.path.isfile(absp):
                 os.remove(absp)
         else:  # pragma nocover
-            raise Exception('Invalid input: {}'.format(set_tree))
+            raise Exception(f'Invalid input: {set_tree}')

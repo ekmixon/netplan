@@ -63,7 +63,7 @@ class NetplanTry(utils.NetplanCommand):
         return False
 
     def touch_ready_stamp(self):
-        os.makedirs(self._rootdir + '/run/netplan', mode=0o700, exist_ok=True)
+        os.makedirs(f'{self._rootdir}/run/netplan', mode=0o700, exist_ok=True)
         open(self._netplan_try_stamp, 'w').close()
 
     def run(self):  # pragma: nocover (requires user input)
@@ -118,9 +118,7 @@ class NetplanTry(utils.NetplanCommand):
             self.clear_ready_stamp()
 
     def backup(self):  # pragma: nocover (requires user input)
-        backup_config_dir = False
-        if self.config_file:
-            backup_config_dir = True
+        backup_config_dir = bool(self.config_file)
         self.config_manager.backup(backup_config_dir=backup_config_dir)
 
     def setup(self):  # pragma: nocover (requires user input)
@@ -128,7 +126,7 @@ class NetplanTry(utils.NetplanCommand):
             dest_dir = os.path.join("/", "etc", "netplan")
             dest_name = os.path.basename(self.config_file).rstrip('.yaml')
             dest_suffix = time.time()
-            dest_path = os.path.join(dest_dir, "{}.{}.yaml".format(dest_name, dest_suffix))
+            dest_path = os.path.join(dest_dir, f"{dest_name}.{dest_suffix}.yaml")
             self.config_manager.add({self.config_file: dest_path})
         self.configuration_changed = True
 
@@ -147,7 +145,7 @@ class NetplanTry(utils.NetplanCommand):
     def cleanup(self):  # pragma: nocover (requires user input)
         self.config_manager.cleanup()
 
-    def is_revertable(self):  # pragma: nocover (requires user input)
+    def is_revertable(self):    # pragma: nocover (requires user input)
         '''
         Check if the configuration is revertable, if it doesn't contain bits
         that we know are likely to render the system unstable if we apply it,
@@ -169,7 +167,7 @@ class NetplanTry(utils.NetplanCommand):
         self.config_manager.parse(extra_config=extra_config)
         self.new_interfaces = self.config_manager.new_interfaces
 
-        logging.debug("New interfaces: {}".format(self.new_interfaces))
+        logging.debug(f"New interfaces: {self.new_interfaces}")
 
         revert_unsupported = []
 
@@ -178,7 +176,7 @@ class NetplanTry(utils.NetplanCommand):
         # to tweak their behavior, which are really hard to "revert", especially
         # as systemd-networkd doesn't necessarily touch them when config changes.
         multi_iface = {}
-        multi_iface.update(self.config_manager.bridges)
+        multi_iface |= self.config_manager.bridges
         multi_iface.update(self.config_manager.bonds)
         for ifname, settings in multi_iface.items():
             if settings and 'parameters' in settings:
@@ -187,7 +185,7 @@ class NetplanTry(utils.NetplanCommand):
 
         if revert_unsupported:
             for ifname, reason in revert_unsupported:
-                print("{}: {}".format(ifname, reason))
+                print(f"{ifname}: {reason}")
             print("\nPlease carefully review the configuration and use 'netplan apply' directly.")
             return False
         return True
@@ -195,6 +193,5 @@ class NetplanTry(utils.NetplanCommand):
     def _signal_handler(self, sig, frame):  # pragma: nocover (requires user input)
         if sig == signal.SIGUSR1:
             raise netplan.terminal.InputAccepted()
-        else:
-            if self.configuration_changed:
-                raise netplan.terminal.InputRejected()
+        if self.configuration_changed:
+            raise netplan.terminal.InputRejected()

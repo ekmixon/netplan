@@ -81,7 +81,7 @@ class NetplanMigrate(utils.NetplanCommand):
                 logging.error('%s: cannot parse "%s" as an MTU', iface, if_options['mtu'])
                 sys.exit(2)
 
-            if 'mtu' in if_config and not if_config['mtu'] == mtu:
+            if 'mtu' in if_config and if_config['mtu'] != mtu:
                 logging.error('%s: tried to set MTU=%d, but already have MTU=%d', iface, mtu, if_config['mtu'])
                 sys.exit(2)
 
@@ -95,7 +95,10 @@ class NetplanMigrate(utils.NetplanCommand):
         """
 
         if 'hwaddress' in if_options:
-            if 'macaddress' in if_config and not if_config['macaddress'] == if_options['hwaddress']:
+            if (
+                'macaddress' in if_config
+                and if_config['macaddress'] != if_options['hwaddress']
+            ):
                 logging.error('%s: tried to set MAC %s, but already have MAC %s', iface,
                               if_options['hwaddress'], if_config['macaddress'])
                 sys.exit(2)
@@ -165,12 +168,11 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
                         # Supported: address netmask gateway
                         # Not supported yet: metric(?)
                         # No YAML support: pointopoint scope broadcast
-                        supported_opts = set(['address', 'netmask', 'gateway'])
-                        unsupported_opts = set(['broadcast', 'metric', 'pointopoint', 'scope'])
+                        supported_opts = {'address', 'netmask', 'gateway'}
+                        unsupported_opts = {'broadcast', 'metric', 'pointopoint', 'scope'}
 
                         opts = set(config['options'].keys())
-                        bad_opts = opts - supported_opts
-                        if bad_opts:
+                        if bad_opts := opts - supported_opts:
                             for unsupported in bad_opts.intersection(unsupported_opts):
                                 logging.error('%s: unsupported %s option "%s"', iface, family, unsupported)
                                 sys.exit(2)
@@ -208,13 +210,12 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
                             logging.error('%s: error parsing "%s" as an IPv4 network: %s', iface, net_spec, a)
                             sys.exit(2)
 
-                        c['addresses'] += [str(ipaddr) + '/' + str(ipnet.prefixlen)]
+                        c['addresses'] += [f'{str(ipaddr)}/{str(ipnet.prefixlen)}']
 
                         if 'gateway' in config['options']:
                             # validate?
                             c['gateway4'] = config['options']['gateway']
 
-                    # ipv6
                     else:
                         assert family == 'inet6'
 
@@ -224,13 +225,21 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
                         # unsupported: metric(?)
                         # no YAML representation: media autoconf privext scope
                         #                         preferred-lifetime dad-attempts dad-interval
-                        supported_opts = set(['address', 'netmask', 'gateway', 'accept_ra'])
-                        unsupported_opts = set(['metric', 'media', 'autoconf', 'privext',
-                                                'scope', 'preferred-lifetime', 'dad-attempts', 'dad-interval'])
+                        supported_opts = {'address', 'netmask', 'gateway', 'accept_ra'}
+                        unsupported_opts = {
+                            'metric',
+                            'media',
+                            'autoconf',
+                            'privext',
+                            'scope',
+                            'preferred-lifetime',
+                            'dad-attempts',
+                            'dad-interval',
+                        }
+
 
                         opts = set(config['options'].keys())
-                        bad_opts = opts - supported_opts
-                        if bad_opts:
+                        if bad_opts := opts - supported_opts:
                             for unsupported in bad_opts.intersection(unsupported_opts):
                                 logging.error('%s: unsupported %s option "%s"', iface, family, unsupported)
                                 sys.exit(2)
@@ -268,7 +277,7 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
                             logging.error('%s: error parsing "%s" as an IPv6 network: %s', iface, net_spec, a)
                             sys.exit(2)
 
-                        c['addresses'] += [str(ipaddr) + '/' + str(ipnet.prefixlen)]
+                        c['addresses'] += [f'{str(ipaddr)}/{str(ipnet.prefixlen)}']
 
                         if 'gateway' in config['options']:
                             # validate?
@@ -317,7 +326,7 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
 
         if not self.dry_run:
             logging.info('renaming %s to %s.netplan-converted', if_config, if_config)
-            os.rename(if_config, if_config + '.netplan-converted')
+            os.rename(if_config, f'{if_config}.netplan-converted')
 
     def _ifupdown_lines_from_file(self, rootdir, path):
         '''Return normalized lines from ifupdown config
@@ -326,15 +335,12 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
         '''
         def expand_source_arg(rootdir, curdir, line):
             arg = line.split()[1]
-            if arg.startswith('/'):
-                return rootdir + arg
-            else:
-                return curdir + '/' + arg
+            return rootdir + arg if arg.startswith('/') else f'{curdir}/{arg}'
 
         lines = []
         rootdir_len = len(rootdir) + 1
         try:
-            with open(rootdir + '/' + path) as f:
+            with open(f'{rootdir}/{path}') as f:
                 logging.debug('reading %s', f.name)
                 for line in f:
                     # normalize, strip empty lines and comments
@@ -388,14 +394,12 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
                 in_options = None  # stop option line parsing of iface stanza
                 in_family = None
             except KeyError:
-                # no known stanza field, are we in an iface stanza and parsing options?
-                if in_options:
-                    logging.debug('in_options %s, parsing as option: %s', in_options, line)
-                    ifaces[in_options][in_family]['options'][fields[0]] = line.split(maxsplit=1)[1]
-                    continue
-                else:
-                    raise ValueError('Unknown stanza type %s' % fields[0])
+                if not in_options:
+                    raise ValueError(f'Unknown stanza type {fields[0]}')
 
+                logging.debug('in_options %s, parsing as option: %s', in_options, line)
+                ifaces[in_options][in_family]['options'][fields[0]] = line.split(maxsplit=1)[1]
+                continue
             # do we have the expected #parameters?
             if len(fields) != exp_len + 1:
                 raise ValueError('Expected %i fields for stanza type %s but got %i' %
@@ -410,14 +414,14 @@ To install it on Debian or Ubuntu-based system, run `apt install python3-yaml`""
                 pass  # ignore these
             elif fields[0] == 'iface':
                 if fields[2] not in ('inet', 'inet6'):
-                    raise ValueError('Unknown address family %s' % fields[2])
+                    raise ValueError(f'Unknown address family {fields[2]}')
                 if fields[3] not in ('loopback', 'static', 'dhcp'):
-                    raise ValueError('Unsupported method %s' % fields[3])
+                    raise ValueError(f'Unsupported method {fields[3]}')
                 in_options = fields[1]
                 in_family = fields[2]
                 ifaces.setdefault(fields[1], OrderedDict())[in_family] = {'method': fields[3], 'options': {}}
             else:
-                raise NotImplementedError('stanza type %s is not implemented' % fields[0])  # pragma nocover
+                raise NotImplementedError(f'stanza type {fields[0]} is not implemented')
 
         logging.debug('final parsed interfaces: %s; auto ifaces: %s', ifaces, auto)
         return (ifaces, auto)
